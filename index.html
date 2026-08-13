@@ -233,6 +233,11 @@
     margin-top:22px;padding:14px 16px;border-radius:8px;background:#fff8e6;
     border:1px solid #f0dfa8;font-size:12.5px;color:#6b5a1e;line-height:1.5;
   }
+  .file-drop-mini{
+    display:inline-block;padding:5px 10px;border:1.5px dashed var(--ubi-border);border-radius:6px;
+    font-size:11.5px;cursor:pointer;color:var(--ubi-blue-dark);background:#fafcfc;white-space:nowrap;
+  }
+  .file-drop-mini:hover{border-color:var(--ubi-blue);background:var(--ubi-blue-light);}
   .progress-wrap{background:#e3edec;border-radius:999px;height:8px;overflow:hidden;margin-top:12px;}
   .progress-bar{background:var(--ubi-blue);height:100%;width:0%;transition:width .2s ease;}
 
@@ -816,6 +821,15 @@ function downloadTemplate(){
 }
 
 let parsedRows = [];
+let rowAttachments = {};
+
+function handleRowFile(e, i){
+  const f = e.target.files[0];
+  if(f){
+    rowAttachments[i] = f;
+    document.getElementById(`csv-file-name-${i}`).textContent = f.name;
+  }
+}
 
 document.getElementById('csvFile').addEventListener('change', function(e){
   const file = e.target.files[0];
@@ -864,6 +878,11 @@ function renderCsvPreview(rows){
       <td>${i+1}</td>
       <td class="status-cell">${statusCell}</td>
       ${CSV_COLUMNS.map(c=>`<td>${row[c]!==undefined? row[c] : ''}</td>`).join('')}
+      <td>
+        <label class="file-drop-mini" for="csv-file-${i}">📎 Adjuntar</label>
+        <input type="file" id="csv-file-${i}" style="display:none" onchange="handleRowFile(event, ${i})">
+        <div class="file-list" id="csv-file-name-${i}"></div>
+      </td>
     </tr>`;
   }).join('');
 
@@ -875,7 +894,7 @@ function renderCsvPreview(rows){
     </div>
     <div class="table-wrap">
       <table class="preview">
-        <thead><tr><th>#</th><th>Estado</th>${CSV_COLUMNS.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <thead><tr><th>#</th><th>Estado</th>${CSV_COLUMNS.map(c=>`<th>${c}</th>`).join('')}<th>Adjunto</th></tr></thead>
         <tbody id="csvTbody">${bodyRows}</tbody>
       </table>
     </div>
@@ -910,6 +929,10 @@ async function processBulk(){
     const statusCell = rowEl.querySelector('.status-cell');
     statusCell.innerHTML = '<span class="status-pending">⏳ Enviando...</span>';
     try{
+      let attachUrl = null;
+      if(rowAttachments[i]){
+        attachUrl = await uploadAttachment(rowAttachments[i], row.TU.trim());
+      }
       await createListItem({
         Title: `${row.CDR.trim()} - TU ${row.TU.trim()}`,
         CDR: row.CDR.trim(),
@@ -924,7 +947,7 @@ async function processBulk(){
         CantidadAfectada: row.CantidadAfectada.trim(),
         TU: row.TU.trim(),
         Comentario: row.Comentario.trim(),
-        DatosAdjuntos: null
+        DatosAdjuntos: attachUrl
       });
       statusCell.innerHTML = '<span class="status-ok">✓ Guardada</span>';
       rowEl.classList.remove('row-invalid'); rowEl.classList.add('row-done');
