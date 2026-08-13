@@ -573,33 +573,7 @@ async function graphFetch(path, options={}){
   return res.status===204 ? null : res.json();
 }
 
-let attachmentsFolderReady = false;
-async function ensureAttachmentsFolder(){
-  if(attachmentsFolderReady) return;
-  const token = await getToken();
-  const checkPath = `/sites/${CONFIG.siteId}/drive/root:/${CONFIG.attachmentsFolderPath}`;
-  const checkRes = await fetch(`https://graph.microsoft.com/v1.0${checkPath}`, {
-    headers:{ 'Authorization': `Bearer ${token}` }
-  });
-  if(checkRes.status === 404){
-    const createRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${CONFIG.siteId}/drive/root/children`, {
-      method:'POST',
-      headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' },
-      body: JSON.stringify({ name: CONFIG.attachmentsFolderPath, folder: {}, "@microsoft.graph.conflictBehavior":"replace" })
-    });
-    if(!createRes.ok){
-      const errText = await createRes.text();
-      throw new Error(`No se pudo crear la carpeta "${CONFIG.attachmentsFolderPath}": ${errText}`);
-    }
-  } else if(!checkRes.ok && checkRes.status !== 404){
-    const errText = await checkRes.text();
-    throw new Error(`No se pudo verificar la carpeta de adjuntos: ${errText}`);
-  }
-  attachmentsFolderReady = true;
-}
-
 async function uploadAttachment(file, tuValue){
-  await ensureAttachmentsFolder();
   const token = await getToken();
   const safeName = `${tuValue||'sin-tu'}_${Date.now()}_${file.name}`.replace(/[^a-zA-Z0-9._-]/g,'_');
   const path = `/sites/${CONFIG.siteId}/drive/root:/${CONFIG.attachmentsFolderPath}/${encodeURIComponent(safeName)}:/content`;
