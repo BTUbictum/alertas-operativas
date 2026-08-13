@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alertas Operativas · Ubictum</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js"></script>
+<style>
+  :root{
+    --ubi-blue:#54a4b3;
+    --ubi-blue-dark:#3d8291;
+    --ubi-blue-light:#e6f1f3;
+    --ubi-gray:#636469;
+    --ubi-ink:#1c2b2e;
+    --ubi-bg:#f2f6f6;
+    --ubi-white:#ffffff;
+    --ubi-border:#dbe6e6;
+    --ubi-danger:#b3463c;
+    --ubi-danger-bg:#fbeae8;
+    --ubi-success:#3f8f6f;
+    --ubi-success-bg:#eaf5f0;
+    --radius:10px;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--ubi-bg);
+    color:var(--ubi-ink);
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    background:linear-gradient(135deg,var(--ubi-ink) 0%,#233c40 60%,var(--ubi-blue-dark) 100%);
+    color:#fff;
+    padding:22px 28px;
+  }
+  .topbar-inner{
+    max-width:1180px;
+    margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-mark{
+    width:38px;height:38px;border-radius:9px;
+    background:var(--ubi-blue);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:15px;letter-spacing:.5px;
+    box-shadow:0 4px 14px rgba(84,164,179,.45);
+  }
+  .brand-text h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.2px;}
+  .brand-text p{margin:2px 0 0;font-size:12.5px;color:#b9d3d6;letter-spacing:.3px;}
+  .slogan{font-size:11.5px;color:#9fc0c4;font-style:italic;}
+  .userbox{display:flex;align-items:center;gap:12px;font-size:12.5px;color:#cfe4e6;}
+  .userbox .chip{background:rgba(255,255,255,.1);padding:6px 12px;border-radius:999px;}
+  .userbox button{
+    background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;
+    padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;
+  }
+  .userbox button:hover{background:rgba(255,255,255,.12);}
+
+  /* ---------- Auth gate ---------- */
+  .gate{
+    min-height:70vh;display:flex;align-items:center;justify-content:center;flex-direction:column;
+    gap:16px;padding:40px 20px;text-align:center;
+  }
+  .gate h2{margin:0;font-size:20px;}
+  .gate p{margin:0;color:var(--ubi-gray);font-size:13.5px;max-width:380px;}
+  .gate-btn{
+    background:var(--ubi-blue);color:#fff;border:none;padding:13px 26px;border-radius:9px;
+    font-size:14.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:10px;
+  }
+  .gate-btn:hover{background:var(--ubi-blue-dark);}
+  .gate-err{color:var(--ubi-danger);font-size:12.5px;max-width:420px;}
+
+  /* ---------- Layout ---------- */
+  .page{max-width:1180px;margin:0 auto;padding:26px 28px 80px;display:none;}
+  .tabs{display:flex;gap:6px;margin-bottom:20px;background:#e3edec;padding:5px;border-radius:12px;width:fit-content;}
+  .tab-btn{
+    border:none;background:transparent;padding:9px 18px;border-radius:9px;
+    font-size:13.5px;font-weight:600;color:var(--ubi-gray);cursor:pointer;
+    transition:all .15s ease;
+  }
+  .tab-btn.active{background:var(--ubi-white);color:var(--ubi-ink);box-shadow:0 1px 4px rgba(0,0,0,.08);}
+
+  .layout{display:grid;grid-template-columns:1fr 320px;gap:22px;align-items:start;}
+  @media (max-width:920px){.layout{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--ubi-white);
+    border:1px solid var(--ubi-border);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin-bottom:18px;
+  }
+  .card h2{
+    font-size:14px;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--ubi-blue-dark);margin:0 0 4px;font-weight:800;
+  }
+  .card .sub{font-size:12.5px;color:var(--ubi-gray);margin:0 0 18px;}
+
+  .field{margin-bottom:18px;}
+  .field:last-child{margin-bottom:0;}
+  label{display:block;font-size:13.5px;font-weight:600;margin-bottom:6px;color:var(--ubi-ink);}
+  label .req{color:var(--ubi-danger);margin-left:2px;}
+  label .opt{font-weight:400;color:var(--ubi-gray);font-size:11.5px;margin-left:6px;}
+  .hint{font-size:11.5px;color:var(--ubi-gray);margin:4px 0 0;}
+
+  input[type=text],input[type=number],select,textarea{
+    width:100%;border:1.5px solid var(--ubi-border);border-radius:8px;
+    padding:10px 12px;font-size:14px;font-family:inherit;color:var(--ubi-ink);
+    background:var(--ubi-white);transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  input:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--ubi-blue);box-shadow:0 0 0 3px rgba(84,164,179,.18);
+  }
+  textarea{resize:vertical;min-height:64px;}
+  select:disabled,input:disabled{background:#f3f5f5;color:#a9adad;cursor:not-allowed;}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:560px){.row2{grid-template-columns:1fr;}}
+
+  .field.invalid input,.field.invalid select,.field.invalid textarea{
+    border-color:var(--ubi-danger);background:var(--ubi-danger-bg);
+  }
+  .err-msg{display:none;font-size:11.5px;color:var(--ubi-danger);margin-top:4px;font-weight:600;}
+  .field.invalid .err-msg{display:block;}
+
+  .segmented{display:flex;gap:8px;}
+  .seg-btn{
+    flex:1;padding:10px 14px;border-radius:8px;border:1.5px solid var(--ubi-border);
+    background:var(--ubi-white);cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ubi-gray);
+    transition:all .15s ease;
+  }
+  .seg-btn.selected{background:var(--ubi-blue);border-color:var(--ubi-blue);color:#fff;}
+
+  .pill-group{display:flex;flex-wrap:wrap;gap:8px;}
+  .pill{
+    padding:9px 16px;border-radius:999px;border:1.5px solid var(--ubi-border);
+    background:var(--ubi-white);cursor:pointer;font-size:13px;font-weight:600;
+    color:var(--ubi-gray);transition:all .15s ease;
+  }
+  .pill[data-cat="Surtido"].selected{background:#f0b429;border-color:#f0b429;color:#4a3800;}
+  .pill[data-cat="Embarque"].selected{background:#e0645a;border-color:#e0645a;color:#fff;}
+  .pill[data-cat="Dato Maestro"].selected{background:#7c8ce0;border-color:#7c8ce0;color:#fff;}
+  .pill[data-cat="Transporte"].selected{background:#4fb0c6;border-color:#4fb0c6;color:#fff;}
+  .pill[data-cat="Merma"].selected{background:#5f6c3f;border-color:#5f6c3f;color:#fff;}
+
+  .file-drop{
+    border:1.5px dashed var(--ubi-border);border-radius:8px;padding:18px;
+    text-align:center;cursor:pointer;background:#fafcfc;transition:all .15s ease;
+  }
+  .file-drop:hover{border-color:var(--ubi-blue);background:var(--ubi-blue-light);}
+  .file-drop input{display:none;}
+  .file-list{margin-top:8px;font-size:12.5px;color:var(--ubi-gray);}
+  .file-list span{display:block;padding:3px 0;}
+
+  .btn{
+    border:none;border-radius:8px;padding:12px 22px;font-size:14px;font-weight:700;
+    cursor:pointer;transition:all .15s ease;
+  }
+  .btn[disabled]{opacity:.55;cursor:not-allowed;}
+  .btn-primary{background:var(--ubi-blue);color:#fff;}
+  .btn-primary:hover{background:var(--ubi-blue-dark);}
+  .btn-ghost{background:transparent;color:var(--ubi-gray);border:1.5px solid var(--ubi-border);}
+  .btn-ghost:hover{border-color:var(--ubi-blue);color:var(--ubi-blue-dark);}
+  .btn-block{width:100%;}
+  .actions{display:flex;gap:10px;margin-top:6px;align-items:center;}
+
+  .ticket{position:sticky;top:20px;}
+  .ticket-card{
+    background:var(--ubi-ink);color:#fff;border-radius:var(--radius);
+    padding:20px;font-family:var(--mono);
+  }
+  .ticket-card h3{margin:0 0 2px;font-size:12px;letter-spacing:1.5px;color:#9fc0c4;text-transform:uppercase;font-family:-apple-system,sans-serif;}
+  .ticket-card .tnum{font-size:11px;color:#5f7a7d;margin-bottom:14px;}
+  .trow{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed #33484b;font-size:12.5px;}
+  .trow:last-child{border-bottom:none;}
+  .trow .k{color:#8fa9ac;}
+  .trow .v{color:#fff;text-align:right;max-width:60%;overflow-wrap:anywhere;}
+  .trow .v.empty{color:#4f6669;font-style:italic;}
+  .ticket-note{font-family:-apple-system,sans-serif;font-size:11.5px;color:var(--ubi-gray);margin-top:12px;line-height:1.5;}
+
+  .conn-card{background:var(--ubi-blue-light);border:1px solid #c9e2e5;}
+  .conn-card h2{color:var(--ubi-blue-dark);}
+  .conn-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .cols-box{
+    margin-top:12px;background:var(--ubi-white);border:1px solid var(--ubi-border);border-radius:8px;
+    padding:12px;font-family:var(--mono);font-size:12px;max-height:200px;overflow:auto;
+  }
+  .cols-box div{padding:2px 0;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ubi-ink);color:#fff;padding:14px 22px;border-radius:9px;
+    font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;
+    transition:all .25s ease;pointer-events:none;max-width:90%;text-align:center;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.success{background:var(--ubi-success);}
+  .toast.error{background:var(--ubi-danger);}
+
+  .csv-drop{
+    border:2px dashed var(--ubi-blue);border-radius:12px;padding:36px 20px;text-align:center;
+    background:var(--ubi-blue-light);cursor:pointer;
+  }
+  .csv-drop input{display:none;}
+  .csv-drop .big{font-size:15px;font-weight:700;color:var(--ubi-blue-dark);}
+  .csv-drop .small{font-size:12.5px;color:var(--ubi-gray);margin-top:4px;}
+
+  table.preview{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:16px;}
+  table.preview th{
+    text-align:left;padding:9px 10px;background:#eef4f4;color:var(--ubi-gray);
+    font-weight:700;text-transform:uppercase;font-size:10.5px;letter-spacing:.4px;
+    position:sticky;top:0;
+  }
+  table.preview td{padding:9px 10px;border-bottom:1px solid var(--ubi-border);white-space:nowrap;}
+  table.preview tr.row-invalid td{background:var(--ubi-danger-bg);}
+  table.preview tr.row-done td{background:var(--ubi-success-bg);}
+  .status-ok{color:var(--ubi-success);font-weight:700;}
+  .status-bad{color:var(--ubi-danger);font-weight:700;}
+  .status-pending{color:var(--ubi-gray);font-weight:700;}
+  .table-wrap{overflow:auto;max-height:420px;border:1px solid var(--ubi-border);border-radius:8px;}
+  .summary-bar{display:flex;gap:18px;margin-top:14px;font-size:13px;flex-wrap:wrap;}
+  .summary-bar b{font-size:15px;}
+  .conn-note{
+    margin-top:22px;padding:14px 16px;border-radius:8px;background:#fff8e6;
+    border:1px solid #f0dfa8;font-size:12.5px;color:#6b5a1e;line-height:1.5;
+  }
+  .progress-wrap{background:#e3edec;border-radius:999px;height:8px;overflow:hidden;margin-top:12px;}
+  .progress-bar{background:var(--ubi-blue);height:100%;width:0%;transition:width .2s ease;}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">U</div>
+      <div class="brand-text">
+        <h1>Alertas operativas</h1>
+        <p>Reporte de incidencias · Centros de Distribución Regional</p>
+      </div>
+    </div>
+    <div class="userbox" id="userbox" style="display:none;">
+      <span class="chip" id="userChip"></span>
+      <button onclick="signOut()">Cerrar sesión</button>
+    </div>
+    <div class="slogan" id="sloganText">La puerta de entrada al mercado</div>
+  </div>
+</div>
+
+<!-- ======================= AUTH GATE ======================= -->
+<div class="gate" id="authGate">
+  <h2>Acceso restringido a Ubictum</h2>
+  <p>Inicia sesión con tu cuenta del tenant de Ubictum (interna o invitada) para reportar una incidencia.</p>
+  <button class="gate-btn" onclick="signIn()">🔐 Iniciar sesión</button>
+  <div class="gate-err" id="gateErr"></div>
+</div>
+
+<div class="page" id="appContent">
+
+  <div class="card conn-card">
+    <h2>Conexión a SharePoint</h2>
+    <p class="sub">Verifica que la app apunta a la lista correcta antes de capturar datos reales.</p>
+    <div class="conn-row">
+      <button class="btn btn-ghost" onclick="testConnection()">Probar conexión / ver columnas de la lista</button>
+      <span id="connStatus" style="font-size:12.5px;color:var(--ubi-gray);"></span>
+    </div>
+    <div class="cols-box" id="colsBox" style="display:none;"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('individual')">Reporte individual</button>
+    <button class="tab-btn" onclick="switchTab('masiva')">Carga masiva (CSV)</button>
+  </div>
+
+  <!-- ======================= PANEL: INDIVIDUAL ======================= -->
+  <div id="panel-individual" class="panel active">
+    <div class="layout">
+      <div>
+
+        <form id="incidenciaForm" novalidate>
+
+          <div class="card">
+            <h2>Origen</h2>
+            <p class="sub">¿Dónde y cómo se recibió el producto?</p>
+
+            <div class="row2">
+              <div class="field" id="f-cdr">
+                <label>CDR<span class="req">*</span></label>
+                <select id="cdr" required>
+                  <option value="" disabled selected>Selecciona un CDR</option>
+                </select>
+                <div class="err-msg">Selecciona un CDR.</div>
+              </div>
+
+              <div class="field" id="f-recibidoPor">
+                <label>Recibido por<span class="req">*</span></label>
+                <div class="segmented" id="recibidoPor">
+                  <button type="button" class="seg-btn" data-val="CDM">CDM</button>
+                  <button type="button" class="seg-btn" data-val="Encadenamiento">Encadenamiento</button>
+                </div>
+                <p class="hint">La recepción fue de manera directa o por encadenamiento.</p>
+                <div class="err-msg">Indica cómo se recibió.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Clasificación</h2>
+            <p class="sub">Tipo de incidencia y detalle del error.</p>
+
+            <div class="field" id="f-incidencia">
+              <label>¿Qué tipo de incidencia quieres reportar?<span class="req">*</span></label>
+              <div class="pill-group" id="incidenciaPills"></div>
+              <div class="err-msg">Selecciona un tipo de incidencia.</div>
+            </div>
+
+            <div class="field" id="f-tipoError">
+              <label>Tipo de error<span class="opt">(opcional)</span></label>
+              <select id="tipoError" disabled>
+                <option value="" selected>Primero elige el tipo de incidencia</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Detalle del material</h2>
+            <p class="sub">Identificación del producto involucrado.</p>
+
+            <div class="row2">
+              <div class="field">
+                <label>Folio de transferencia<span class="opt">(opcional · 10 dígitos)</span></label>
+                <input type="text" id="folio" inputmode="numeric" maxlength="10" placeholder="0000000000">
+                <div class="err-msg">Debe tener exactamente 10 dígitos.</div>
+              </div>
+              <div class="field">
+                <label>Lote<span class="opt">(opcional)</span></label>
+                <input type="text" id="lote" placeholder="Introducir un valor aquí">
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Material<span class="opt">(opcional)</span></label>
+              <textarea id="material" placeholder="Introducir un valor aquí"></textarea>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Cantidades</h2>
+            <p class="sub">Comparativo entre lo solicitado, lo recibido y lo afectado.</p>
+
+            <div class="row2">
+              <div class="field" id="f-cantSolicitada">
+                <label>Cantidad solicitada en CDR<span class="req">*</span></label>
+                <input type="number" id="cantSolicitada" min="0" placeholder="Especifica un número" required>
+                <div class="err-msg">Campo obligatorio.</div>
+              </div>
+              <div class="field" id="f-cantRecibida">
+                <label>Cantidad de piezas recibidas en CDR<span class="req">*</span></label>
+                <input type="number" id="cantRecibida" min="0" placeholder="Especifica un número" required>
+                <div class="err-msg">Campo obligatorio.</div>
+              </div>
+            </div>
+
+            <div class="row2">
+              <div class="field" id="f-cantAfectada">
+                <label>Cantidad de piezas afectadas<span class="req">*</span></label>
+                <input type="number" id="cantAfectada" min="0" placeholder="Especifica un número" required>
+                <div class="err-msg">Campo obligatorio.</div>
+              </div>
+              <div class="field" id="f-tu">
+                <label>TU<span class="req">*</span><span class="opt">(10 dígitos)</span></label>
+                <input type="text" id="tu" inputmode="numeric" maxlength="10" placeholder="0000000000" required>
+                <div class="err-msg">El número de TU debe tener exactamente 10 dígitos.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Evidencia</h2>
+            <p class="sub">Adjunta soporte y describe el hallazgo detectado.</p>
+
+            <div class="field" id="f-adjuntos">
+              <label>Datos adjuntos<span class="req">*</span></label>
+              <label class="file-drop" for="adjuntos">
+                <div>+ Agregar datos adjuntos</div>
+                <input type="file" id="adjuntos" multiple>
+              </label>
+              <div class="file-list" id="fileList"></div>
+              <div class="err-msg">Adjunta al menos un archivo.</div>
+            </div>
+
+            <div class="field" id="f-comentario">
+              <label>Comentario<span class="req">*</span></label>
+              <p class="hint" style="margin-top:-4px;">Especificar el hallazgo detectado.</p>
+              <textarea id="comentario" placeholder="Introducir un valor aquí" required></textarea>
+              <div class="err-msg">Describe el hallazgo detectado.</div>
+            </div>
+
+            <div class="actions">
+              <button type="submit" class="btn btn-primary" id="submitBtn">Enviar</button>
+              <button type="button" class="btn btn-ghost" onclick="resetForm()">Limpiar</button>
+            </div>
+          </div>
+
+        </form>
+      </div>
+
+      <div class="ticket">
+        <div class="ticket-card" id="ticket">
+          <h3>Vista previa</h3>
+          <div class="tnum" id="ticketId">— sin folio —</div>
+          <div id="ticketBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= PANEL: CARGA MASIVA ======================= -->
+  <div id="panel-masiva" class="panel">
+    <div class="card">
+      <h2>Carga masiva</h2>
+      <p class="sub">Sube un archivo CSV con varias incidencias. Los datos adjuntos y el comentario deben cargarse
+      individualmente después; el CSV cubre el resto de los campos.</p>
+
+      <div style="display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="downloadTemplate()">⬇ Descargar plantilla CSV</button>
+      </div>
+
+      <label class="csv-drop" for="csvFile">
+        <div class="big">Arrastra tu CSV aquí o haz clic para elegirlo</div>
+        <div class="small">Usa la plantilla para asegurar que las columnas coincidan</div>
+        <input type="file" id="csvFile" accept=".csv">
+      </label>
+
+      <div id="csvResults"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN — edita estos 4 valores antes de usar en real
+   ============================================================ */
+const CONFIG = {
+  tenantId: "TU_TENANT_ID",                 // Directory (tenant) ID de Ubictum en Entra ID
+  clientId: "TU_CLIENT_ID",                 // Application (client) ID de la app registrada
+  siteId:   "TU_SITE_ID",                   // id del sitio de SharePoint
+  listId:   "TU_LIST_ID",                   // id de la lista de SharePoint
+  attachmentsFolderPath: "AlertasOperativas"// carpeta en la biblioteca de documentos del sitio
+};
+
+// Mapeo de nuestros campos -> nombres internos de columna en SharePoint.
+// Usa el botón "Probar conexión / ver columnas" en la app para confirmar los nombres reales
+// y ajusta este objeto si no coinciden.
+const FIELD_MAP = {
+  CDR: "CDR",
+  RecibidoPor: "RecibidoPor",
+  TipoIncidencia: "TipoIncidencia",
+  TipoError: "TipoError",
+  FolioTransferencia: "FolioTransferencia",
+  Material: "Material",
+  Lote: "Lote",
+  CantidadSolicitada: "CantidadSolicitada",
+  CantidadRecibida: "CantidadRecibida",
+  CantidadAfectada: "CantidadAfectada",
+  TU: "TU",
+  Comentario: "Comentario",
+  DatosAdjuntos: "DatosAdjuntos"
+};
+
+const GRAPH_SCOPES = ["Sites.ReadWrite.All", "Files.ReadWrite.All", "User.Read"];
+
+/* ============ DATA ============ */
+const CDR_OPTIONS = ["Bajío","Guadalajara","Tuxtla","Tijuana","México Norte","México Sur","La Paz","Culiacán","Monterrey","Morelia","Puebla","Mérida","Chihuahua","Veracruz"];
+const INCIDENCIA_OPTIONS = ["Surtido","Embarque","Dato Maestro","Transporte","Merma"];
+const TIPO_ERROR_MAP = {
+  "Surtido": ["Faltante","Sobrante","Material equivocado","Lote equivocado","Caducidad"],
+  "Embarque": ["Empaque dañado","Mala estiba","Tarima incorrecta","Documentación","Consolidación"],
+  "Dato Maestro": ["Unidad de medida","Código","Conversión"],
+  "Transporte": ["Sello violado","Unidad incorrecta","Condiciones del transporte"],
+  "Merma": ["Producto dañado","Fuga o derrame","Contaminación","Pérdida operativa"]
+};
+const CSV_COLUMNS = ["CDR","RecibidoPor","TipoIncidencia","TipoError","FolioTransferencia","Material","Lote","CantidadSolicitada","CantidadRecibida","CantidadAfectada","TU","Comentario"];
+
+/* ============================================================
+   AUTENTICACIÓN — MSAL.js restringido al tenant de Ubictum
+   ============================================================ */
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`, // single-tenant: solo cuentas de este directorio (incluye guests)
+    redirectUri: window.location.href
+  },
+  cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+async function signIn(){
+  document.getElementById('gateErr').textContent = '';
+  try{
+    const res = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES });
+    msalInstance.setActiveAccount(res.account);
+    onSignedIn(res.account);
+  }catch(err){
+    document.getElementById('gateErr').textContent = 'No se pudo iniciar sesión: ' + err.message;
+  }
+}
+
+function signOut(){
+  msalInstance.logoutPopup().then(()=>{
+    document.getElementById('appContent').style.display='none';
+    document.getElementById('userbox').style.display='none';
+    document.getElementById('authGate').style.display='flex';
+  });
+}
+
+function onSignedIn(account){
+  document.getElementById('authGate').style.display='none';
+  document.getElementById('appContent').style.display='block';
+  document.getElementById('userbox').style.display='flex';
+  document.getElementById('userChip').textContent = `${account.name} · ${account.username}`;
+}
+
+async function getToken(){
+  const account = msalInstance.getActiveAccount();
+  if(!account) throw new Error('No hay sesión activa. Inicia sesión de nuevo.');
+  try{
+    const res = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account });
+    return res.accessToken;
+  }catch(e){
+    const res = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+    return res.accessToken;
+  }
+}
+
+(function initAuth(){
+  const accounts = msalInstance.getAllAccounts();
+  if(accounts.length > 0){
+    msalInstance.setActiveAccount(accounts[0]);
+    onSignedIn(accounts[0]);
+  }
+})();
+
+/* ============================================================
+   GRAPH HELPERS
+   ============================================================ */
+async function graphFetch(path, options={}){
+  const token = await getToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    ...options,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json', ...(options.headers||{}) }
+  });
+  if(!res.ok){
+    const errBody = await res.text();
+    throw new Error(`Graph ${res.status}: ${errBody}`);
+  }
+  return res.status===204 ? null : res.json();
+}
+
+async function uploadAttachment(file, tuValue){
+  const token = await getToken();
+  const safeName = `${tuValue||'sin-tu'}_${Date.now()}_${file.name}`.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path = `/sites/${CONFIG.siteId}/drive/root:/${CONFIG.attachmentsFolderPath}/${encodeURIComponent(safeName)}:/content`;
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method:'PUT',
+    headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+    body: file
+  });
+  if(!res.ok) throw new Error('No se pudo subir el archivo ' + file.name);
+  const data = await res.json();
+  return data.webUrl;
+}
+
+async function createListItem(fieldsRaw){
+  const fields = {};
+  Object.entries(fieldsRaw).forEach(([k,v])=>{
+    if(v !== null && v !== undefined && FIELD_MAP[k]) fields[FIELD_MAP[k]] = v;
+  });
+  return graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items`, {
+    method:'POST',
+    body: JSON.stringify({ fields })
+  });
+}
+
+async function testConnection(){
+  const statusEl = document.getElementById('connStatus');
+  const box = document.getElementById('colsBox');
+  statusEl.textContent = 'Consultando...';
+  box.style.display='none';
+  try{
+    const data = await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/columns`);
+    const cols = data.value.filter(c=>!c.hidden && !c.readOnly);
+    box.innerHTML = cols.map(c=>`<div><b>${c.name}</b> — ${c.displayName}</div>`).join('');
+    box.style.display='block';
+    statusEl.textContent = `✓ Conectado. ${cols.length} columnas editables encontradas.`;
+    statusEl.style.color = 'var(--ubi-success)';
+  }catch(err){
+    statusEl.textContent = '✕ Error de conexión: ' + err.message;
+    statusEl.style.color = 'var(--ubi-danger)';
+  }
+}
+
+/* ============ INIT: selects ============ */
+const cdrSelect = document.getElementById('cdr');
+CDR_OPTIONS.forEach(c=>{
+  const o = document.createElement('option'); o.value=c; o.textContent=c; cdrSelect.appendChild(o);
+});
+
+const pillWrap = document.getElementById('incidenciaPills');
+INCIDENCIA_OPTIONS.forEach(cat=>{
+  const b = document.createElement('button');
+  b.type='button'; b.className='pill'; b.dataset.cat=cat; b.textContent=cat;
+  b.addEventListener('click', ()=>selectIncidencia(cat));
+  pillWrap.appendChild(b);
+});
+
+const tipoErrorSelect = document.getElementById('tipoError');
+function selectIncidencia(cat){
+  document.querySelectorAll('.pill').forEach(p=>p.classList.toggle('selected', p.dataset.cat===cat));
+  state.incidencia = cat;
+  document.getElementById('f-incidencia').classList.remove('invalid');
+
+  tipoErrorSelect.innerHTML='';
+  const opts = TIPO_ERROR_MAP[cat] || [];
+  const placeholder = document.createElement('option');
+  placeholder.value=''; placeholder.textContent = 'Selecciona un tipo de error (opcional)';
+  tipoErrorSelect.appendChild(placeholder);
+  opts.forEach(o=>{
+    const opt=document.createElement('option'); opt.value=o; opt.textContent=o; tipoErrorSelect.appendChild(opt);
+  });
+  tipoErrorSelect.disabled = opts.length===0;
+  state.tipoError='';
+  updateTicket();
+}
+
+document.querySelectorAll('#recibidoPor .seg-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#recibidoPor .seg-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    state.recibidoPor = btn.dataset.val;
+    document.getElementById('f-recibidoPor').classList.remove('invalid');
+    updateTicket();
+  });
+});
+
+/* ============ STATE + TICKET ============ */
+const state = { cdr:'', recibidoPor:'', incidencia:'', tipoError:'' };
+
+const fieldIds = ['cdr','folio','lote','material','cantSolicitada','cantRecibida','cantAfectada','tu','comentario'];
+fieldIds.forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>{ clearInvalid(id); updateTicket(); });
+});
+cdrSelect.addEventListener('change', ()=>{ clearInvalid('cdr'); updateTicket(); });
+tipoErrorSelect.addEventListener('change', ()=>{ state.tipoError = tipoErrorSelect.value; updateTicket(); });
+document.getElementById('adjuntos').addEventListener('change', (e)=>{
+  const files = Array.from(e.target.files).map(f=>f.name);
+  document.getElementById('fileList').innerHTML = files.map(f=>`<span>📎 ${f}</span>`).join('');
+  document.getElementById('f-adjuntos').classList.remove('invalid');
+  updateTicket();
+});
+
+function clearInvalid(id){ document.getElementById('f-'+id)?.classList.remove('invalid'); }
+
+function ticketRow(k,v){
+  const val = v && String(v).trim() !== '' ? v : '—';
+  return `<div class="trow"><span class="k">${k}</span><span class="v ${val==='—'?'empty':''}">${val}</span></div>`;
+}
+
+function updateTicket(){
+  const body = document.getElementById('ticketBody');
+  const adjCount = document.getElementById('adjuntos').files.length;
+  document.getElementById('ticketId').textContent = document.getElementById('tu').value ? `TU ${document.getElementById('tu').value}` : '— sin TU —';
+  body.innerHTML = [
+    ticketRow('CDR', cdrSelect.value),
+    ticketRow('Recibido por', state.recibidoPor),
+    ticketRow('Incidencia', state.incidencia),
+    ticketRow('Tipo de error', tipoErrorSelect.value),
+    ticketRow('Folio', document.getElementById('folio').value),
+    ticketRow('Lote', document.getElementById('lote').value),
+    ticketRow('Sol. / Recib. / Afect.', `${document.getElementById('cantSolicitada').value||'—'} / ${document.getElementById('cantRecibida').value||'—'} / ${document.getElementById('cantAfectada').value||'—'}`),
+    ticketRow('Adjuntos', adjCount ? adjCount+' archivo(s)' : ''),
+  ].join('');
+}
+updateTicket();
+
+/* ============ VALIDATION + SUBMIT (real, a SharePoint) ============ */
+document.getElementById('incidenciaForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  let valid = true;
+  const markInvalid = (id)=>{ document.getElementById('f-'+id).classList.add('invalid'); valid=false; };
+
+  if(!cdrSelect.value) markInvalid('cdr');
+  if(!state.recibidoPor) markInvalid('recibidoPor');
+  if(!state.incidencia) markInvalid('incidencia');
+
+  const folio = document.getElementById('folio').value.trim();
+  if(folio && !/^\d{10}$/.test(folio)) markInvalid('folio');
+
+  ['cantSolicitada','cantRecibida','cantAfectada'].forEach(id=>{
+    if(document.getElementById(id).value === '') markInvalid(id);
+  });
+
+  const tu = document.getElementById('tu').value.trim();
+  if(!/^\d{10}$/.test(tu)) markInvalid('tu');
+
+  if(document.getElementById('adjuntos').files.length === 0) markInvalid('adjuntos');
+  if(!document.getElementById('comentario').value.trim()) markInvalid('comentario');
+
+  if(!valid){
+    showToast('Revisa los campos marcados en rojo.', 'error');
+    return;
+  }
+
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Subiendo adjuntos...';
+
+  try{
+    const files = Array.from(document.getElementById('adjuntos').files);
+    const urls = [];
+    for(const f of files){
+      urls.push(await uploadAttachment(f, tu));
+    }
+
+    submitBtn.textContent = 'Guardando en SharePoint...';
+
+    await createListItem({
+      CDR: cdrSelect.value,
+      RecibidoPor: state.recibidoPor,
+      TipoIncidencia: state.incidencia,
+      TipoError: tipoErrorSelect.value || null,
+      FolioTransferencia: folio || null,
+      Material: document.getElementById('material').value || null,
+      Lote: document.getElementById('lote').value || null,
+      CantidadSolicitada: Number(document.getElementById('cantSolicitada').value),
+      CantidadRecibida: Number(document.getElementById('cantRecibida').value),
+      CantidadAfectada: Number(document.getElementById('cantAfectada').value),
+      TU: tu,
+      Comentario: document.getElementById('comentario').value,
+      DatosAdjuntos: urls.join('\n')
+    });
+
+    showToast('✓ Incidencia guardada en la lista de SharePoint.', 'success');
+    resetForm();
+  }catch(err){
+    showToast('Error al guardar: ' + err.message, 'error');
+  }finally{
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Enviar';
+  }
+});
+
+function resetForm(){
+  document.getElementById('incidenciaForm').reset();
+  document.querySelectorAll('.pill, .seg-btn').forEach(b=>b.classList.remove('selected'));
+  document.querySelectorAll('.field').forEach(f=>f.classList.remove('invalid'));
+  state.cdr=''; state.recibidoPor=''; state.incidencia=''; state.tipoError='';
+  tipoErrorSelect.innerHTML = '<option value="" selected>Primero elige el tipo de incidencia</option>';
+  tipoErrorSelect.disabled = true;
+  document.getElementById('fileList').innerHTML='';
+  updateTicket();
+}
+
+function showToast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type||'');
+  setTimeout(()=> t.className='toast', 3200);
+}
+
+/* ============ TABS ============ */
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+/* ============ CSV BULK ============ */
+function downloadTemplate(){
+  const csv = CSV_COLUMNS.join(',') + '\n';
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'plantilla_alertas_operativas.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+let parsedRows = [];
+
+document.getElementById('csvFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  Papa.parse(file, {
+    header:true,
+    skipEmptyLines:true,
+    complete: function(results){
+      parsedRows = results.data;
+      renderCsvPreview(parsedRows);
+    }
+  });
+});
+
+function validateRow(row){
+  const errors = [];
+  if(!CDR_OPTIONS.includes((row.CDR||'').trim())) errors.push('CDR inválido');
+  if(!['CDM','Encadenamiento'].includes((row.RecibidoPor||'').trim())) errors.push('RecibidoPor inválido');
+  if(!INCIDENCIA_OPTIONS.includes((row.TipoIncidencia||'').trim())) errors.push('TipoIncidencia inválido');
+  const cat = (row.TipoIncidencia||'').trim();
+  const te = (row.TipoError||'').trim();
+  if(te && cat && TIPO_ERROR_MAP[cat] && !TIPO_ERROR_MAP[cat].includes(te)) errors.push('TipoError no corresponde a la categoría');
+  if(row.FolioTransferencia && !/^\d{10}$/.test(row.FolioTransferencia.trim())) errors.push('Folio debe ser 10 dígitos');
+  ['CantidadSolicitada','CantidadRecibida','CantidadAfectada'].forEach(k=>{
+    if((row[k]||'').trim()==='' || isNaN(Number(row[k]))) errors.push(k+' inválido');
+  });
+  if(!/^\d{10}$/.test((row.TU||'').trim())) errors.push('TU debe ser 10 dígitos');
+  if(!(row.Comentario||'').trim()) errors.push('Comentario vacío');
+  return errors;
+}
+
+function renderCsvPreview(rows){
+  const container = document.getElementById('csvResults');
+  if(!rows.length){
+    container.innerHTML = '<p class="hint">El archivo no tiene filas de datos.</p>';
+    return;
+  }
+  let validCount = 0;
+  const bodyRows = rows.map((row, i)=>{
+    const errors = validateRow(row);
+    if(errors.length===0) validCount++;
+    const statusCell = errors.length===0
+      ? '<span class="status-ok">✓ Lista</span>'
+      : `<span class="status-bad">✕ ${errors.join('; ')}</span>`;
+    return `<tr id="csv-row-${i}" class="${errors.length? 'row-invalid':''}">
+      <td>${i+1}</td>
+      <td class="status-cell">${statusCell}</td>
+      ${CSV_COLUMNS.map(c=>`<td>${row[c]!==undefined? row[c] : ''}</td>`).join('')}
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="summary-bar">
+      <div>Filas totales: <b>${rows.length}</b></div>
+      <div style="color:var(--ubi-success)">Válidas: <b id="validCountLabel">${validCount}</b></div>
+      <div style="color:var(--ubi-danger)">Con errores: <b>${rows.length-validCount}</b></div>
+    </div>
+    <div class="table-wrap">
+      <table class="preview">
+        <thead><tr><th>#</th><th>Estado</th>${CSV_COLUMNS.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <tbody id="csvTbody">${bodyRows}</tbody>
+      </table>
+    </div>
+    <div class="progress-wrap" id="progressWrap" style="display:none;"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="actions" style="margin-top:16px;">
+      <button class="btn btn-primary" id="bulkBtn" onclick="processBulk()">
+        Procesar carga (${validCount} válidas)
+      </button>
+    </div>
+    <div class="conn-note">
+      ⚙️ Cada fila válida se inserta como un elemento nuevo en la lista de SharePoint. Los adjuntos y comentarios
+      detallados se completan después vía el formulario individual.
+    </div>
+  `;
+}
+
+async function processBulk(){
+  const btn = document.getElementById('bulkBtn');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressBar = document.getElementById('progressBar');
+  btn.disabled = true;
+  progressWrap.style.display='block';
+
+  const validIndexes = parsedRows.map((row,i)=>({row,i,errors:validateRow(row)})).filter(x=>x.errors.length===0);
+  let done = 0;
+
+  for(const {row,i} of validIndexes){
+    const rowEl = document.getElementById(`csv-row-${i}`);
+    const statusCell = rowEl.querySelector('.status-cell');
+    statusCell.innerHTML = '<span class="status-pending">⏳ Enviando...</span>';
+    try{
+      await createListItem({
+        CDR: row.CDR.trim(),
+        RecibidoPor: row.RecibidoPor.trim(),
+        TipoIncidencia: row.TipoIncidencia.trim(),
+        TipoError: (row.TipoError||'').trim() || null,
+        FolioTransferencia: (row.FolioTransferencia||'').trim() || null,
+        Material: (row.Material||'').trim() || null,
+        Lote: (row.Lote||'').trim() || null,
+        CantidadSolicitada: Number(row.CantidadSolicitada),
+        CantidadRecibida: Number(row.CantidadRecibida),
+        CantidadAfectada: Number(row.CantidadAfectada),
+        TU: row.TU.trim(),
+        Comentario: row.Comentario.trim(),
+        DatosAdjuntos: null
+      });
+      statusCell.innerHTML = '<span class="status-ok">✓ Guardada</span>';
+      rowEl.classList.remove('row-invalid'); rowEl.classList.add('row-done');
+    }catch(err){
+      statusCell.innerHTML = `<span class="status-bad">✕ Error: ${err.message}</span>`;
+    }
+    done++;
+    progressBar.style.width = Math.round((done/validIndexes.length)*100) + '%';
+    await new Promise(r=>setTimeout(r, 250)); // pausa para no saturar Graph API
+  }
+
+  btn.textContent = 'Carga completada';
+  showToast(`Carga masiva terminada: ${done} fila(s) procesadas.`, 'success');
+}
+</script>
+</body>
+</html>
