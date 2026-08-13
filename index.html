@@ -445,6 +445,7 @@
       </label>
 
       <div id="csvResults"></div>
+      <div id="reviewPanel" style="display:none;"></div>
     </div>
   </div>
 
@@ -880,8 +881,11 @@ function renderCsvPreview(rows){
     </div>
     <div class="progress-wrap" id="progressWrap" style="display:none;"><div class="progress-bar" id="progressBar"></div></div>
     <div class="actions" style="margin-top:16px;">
-      <button class="btn btn-primary" id="bulkBtn" onclick="processBulk()">
-        Procesar carga (${validCount} válidas)
+      <button class="btn btn-primary" id="bulkBtn" onclick="startReview()">
+        Revisar y adjuntar, fila por fila (${validCount})
+      </button>
+      <button class="btn btn-ghost" onclick="processBulk()">
+        Cargar todo automático, sin adjuntos (${validCount})
       </button>
     </div>
     <div class="conn-note">
@@ -934,6 +938,152 @@ async function processBulk(){
 
   btn.textContent = 'Carga completada';
   showToast(`Carga masiva terminada: ${done} fila(s) procesadas.`, 'success');
+}
+
+/* ============ REVISIÓN FILA POR FILA (con adjuntos) ============ */
+let reviewRows = [];
+let currentReviewIndex = 0;
+let reviewResults = [];
+
+function buildSelectOptions(options, selected, includeBlank){
+  let html = includeBlank ? `<option value="" ${!selected?'selected':''}></option>` : '';
+  html += options.map(o=>`<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('');
+  return html;
+}
+
+function startReview(){
+  reviewRows = parsedRows.map((row,i)=>({index:i,row,errors:validateRow(row)})).filter(x=>x.errors.length===0);
+  if(reviewRows.length===0){ showToast('No hay filas válidas para revisar.','error'); return; }
+  currentReviewIndex = 0;
+  reviewResults = [];
+  document.getElementById('csvResults').style.display='none';
+  document.getElementById('reviewPanel').style.display='block';
+  renderReviewRow();
+}
+
+function renderReviewRow(){
+  const total = reviewRows.length;
+  const item = reviewRows[currentReviewIndex];
+  const row = item.row;
+  const cat = (row.TipoIncidencia||'').trim();
+  const teOptions = TIPO_ERROR_MAP[cat] || [];
+  const panel = document.getElementById('reviewPanel');
+  panel.innerHTML = `
+    <div class="card">
+      <h2>Revisión — fila ${currentReviewIndex+1} de ${total}</h2>
+      <p class="sub">Confirma o corrige los datos y agrega una foto/adjunto si aplica, antes de guardar en SharePoint.</p>
+      <div class="progress-wrap"><div class="progress-bar" style="width:${Math.round((currentReviewIndex/total)*100)}%"></div></div>
+
+      <div class="row2" style="margin-top:20px;">
+        <div class="field"><label>CDR</label><select id="rev-cdr">${buildSelectOptions(CDR_OPTIONS,row.CDR)}</select></div>
+        <div class="field"><label>Recibido por</label><select id="rev-recibidoPor">${buildSelectOptions(['CDM','Encadenamiento'],row.RecibidoPor)}</select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Tipo de incidencia</label><select id="rev-incidencia" onchange="onRevIncidenciaChange()">${buildSelectOptions(INCIDENCIA_OPTIONS,cat)}</select></div>
+        <div class="field"><label>Tipo de error</label><select id="rev-tipoError">${buildSelectOptions(teOptions,(row.TipoError||'').trim(),true)}</select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Folio</label><input type="text" id="rev-folio" value="${row.FolioTransferencia||''}"></div>
+        <div class="field"><label>Lote</label><input type="text" id="rev-lote" value="${row.Lote||''}"></div>
+      </div>
+      <div class="field"><label>Material</label><textarea id="rev-material">${row.Material||''}</textarea></div>
+      <div class="row2">
+        <div class="field"><label>Cantidad solicitada</label><input type="text" id="rev-cantSol" value="${row.CantidadSolicitada||''}"></div>
+        <div class="field"><label>Cantidad recibida</label><input type="text" id="rev-cantRec" value="${row.CantidadRecibida||''}"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Cantidad afectada</label><input type="text" id="rev-cantAfe" value="${row.CantidadAfectada||''}"></div>
+        <div class="field"><label>TU</label><input type="text" id="rev-tu" value="${row.TU||''}" maxlength="10"></div>
+      </div>
+      <div class="field"><label>Comentario</label><textarea id="rev-comentario">${row.Comentario||''}</textarea></div>
+
+      <div class="field">
+        <label>Foto / adjunto<span class="opt">(opcional)</span></label>
+        <label class="file-drop" for="rev-file"><div>+ Agregar foto o archivo</div><input type="file" id="rev-file"></label>
+        <div class="file-list" id="rev-fileList"></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="rev-save-btn" onclick="saveReviewRow()">Guardar y continuar</button>
+        <button class="btn btn-ghost" onclick="skipReviewRow()">Omitir esta fila</button>
+        <button class="btn btn-ghost" onclick="cancelReview()">Cancelar revisión</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('rev-file').addEventListener('change', (e)=>{
+    const f = e.target.files[0];
+    document.getElementById('rev-fileList').innerHTML = f ? `<span>📎 ${f.name}</span>` : '';
+  });
+}
+
+function onRevIncidenciaChange(){
+  const cat = document.getElementById('rev-incidencia').value;
+  const teOptions = TIPO_ERROR_MAP[cat] || [];
+  document.getElementById('rev-tipoError').innerHTML = buildSelectOptions(teOptions, '', true);
+}
+
+async function saveReviewRow(){
+  const btn = document.getElementById('rev-save-btn');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  const tu = document.getElementById('rev-tu').value.trim();
+  try{
+    let attachUrl = null;
+    const file = document.getElementById('rev-file').files[0];
+    if(file){ attachUrl = await uploadAttachment(file, tu); }
+    await createListItem({
+      Title: `${document.getElementById('rev-cdr').value} - TU ${tu}`,
+      CDR: document.getElementById('rev-cdr').value,
+      RecibidoPor: document.getElementById('rev-recibidoPor').value,
+      TipoIncidencia: document.getElementById('rev-incidencia').value,
+      TipoError: document.getElementById('rev-tipoError').value || null,
+      FolioTransferencia: document.getElementById('rev-folio').value.trim() || null,
+      Material: document.getElementById('rev-material').value.trim() || null,
+      Lote: document.getElementById('rev-lote').value.trim() || null,
+      CantidadSolicitada: document.getElementById('rev-cantSol').value.trim(),
+      CantidadRecibida: document.getElementById('rev-cantRec').value.trim(),
+      CantidadAfectada: document.getElementById('rev-cantAfe').value.trim(),
+      TU: tu,
+      Comentario: document.getElementById('rev-comentario').value.trim(),
+      DatosAdjuntos: attachUrl || null
+    });
+    reviewResults.push({ index: reviewRows[currentReviewIndex].index, status:'saved' });
+    advanceReview();
+  }catch(err){
+    showToast('Error al guardar: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = 'Guardar y continuar';
+  }
+}
+
+function skipReviewRow(){
+  reviewResults.push({ index: reviewRows[currentReviewIndex].index, status:'skipped' });
+  advanceReview();
+}
+
+function advanceReview(){
+  currentReviewIndex++;
+  if(currentReviewIndex >= reviewRows.length){
+    finishReview();
+  }else{
+    renderReviewRow();
+  }
+}
+
+function cancelReview(){
+  document.getElementById('reviewPanel').style.display='none';
+  document.getElementById('reviewPanel').innerHTML='';
+  document.getElementById('csvResults').style.display='block';
+}
+
+function finishReview(){
+  const saved = reviewResults.filter(r=>r.status==='saved').length;
+  const skipped = reviewResults.filter(r=>r.status==='skipped').length;
+  document.getElementById('reviewPanel').innerHTML = `
+    <div class="card">
+      <h2>Revisión completada</h2>
+      <p class="sub">${saved} fila(s) guardadas en SharePoint, ${skipped} omitida(s).</p>
+      <button class="btn btn-ghost" onclick="cancelReview()">Volver a la tabla</button>
+    </div>`;
+  showToast(`Revisión terminada: ${saved} guardadas, ${skipped} omitidas.`, 'success');
 }
 </script>
 </body>
