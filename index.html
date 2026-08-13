@@ -595,10 +595,17 @@ async function createListItem(fieldsRaw){
   Object.entries(fieldsRaw).forEach(([k,v])=>{
     if(v !== null && v !== undefined && FIELD_MAP[k]) fields[FIELD_MAP[k]] = v;
   });
-  return graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items`, {
-    method:'POST',
-    body: JSON.stringify({ fields })
-  });
+  const body = JSON.stringify({ fields });
+  try{
+    return await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items`, { method:'POST', body });
+  }catch(err){
+    // Reintento único ante errores transitorios (5xx) del backend de SharePoint
+    if(/Graph 5\d\d/.test(err.message)){
+      await new Promise(r=>setTimeout(r, 1500));
+      return await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/items`, { method:'POST', body });
+    }
+    throw err;
+  }
 }
 
 async function testConnection(){
