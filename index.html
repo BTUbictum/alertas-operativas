@@ -468,16 +468,17 @@ const CONFIG = {
 // Usa el botón "Probar conexión / ver columnas" en la app para confirmar los nombres reales
 // y ajusta este objeto si no coinciden.
 const FIELD_MAP = {
+  Title: "Title",
   CDR: "CDR",
   RecibidoPor: "RecibidoPor",
   TipoIncidencia: "TipoIncidencia",
-  TipoError: "TipoError",
-  FolioTransferencia: "FolioTransferencia",
+  TipoError: "TipoIncidenciaEmbarque",
+  FolioTransferencia: "Folio",
   Material: "Material",
   Lote: "Lote",
-  CantidadSolicitada: "CantidadSolicitada",
-  CantidadRecibida: "CantidadRecibida",
-  CantidadAfectada: "CantidadAfectada",
+  CantidadSolicitada: "CantidadSolicitadaCDR",
+  CantidadRecibida: "CantidadPzasRecibidasCDR",
+  CantidadAfectada: "CantidadPzasAfectadas",
   TU: "TU",
   Comentario: "Comentario",
   DatosAdjuntos: "DatosAdjuntos"
@@ -572,7 +573,33 @@ async function graphFetch(path, options={}){
   return res.status===204 ? null : res.json();
 }
 
+let attachmentsFolderReady = false;
+async function ensureAttachmentsFolder(){
+  if(attachmentsFolderReady) return;
+  const token = await getToken();
+  const checkPath = `/sites/${CONFIG.siteId}/drive/root:/${CONFIG.attachmentsFolderPath}`;
+  const checkRes = await fetch(`https://graph.microsoft.com/v1.0${checkPath}`, {
+    headers:{ 'Authorization': `Bearer ${token}` }
+  });
+  if(checkRes.status === 404){
+    const createRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${CONFIG.siteId}/drive/root/children`, {
+      method:'POST',
+      headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ name: CONFIG.attachmentsFolderPath, folder: {}, "@microsoft.graph.conflictBehavior":"replace" })
+    });
+    if(!createRes.ok){
+      const errText = await createRes.text();
+      throw new Error(`No se pudo crear la carpeta "${CONFIG.attachmentsFolderPath}": ${errText}`);
+    }
+  } else if(!checkRes.ok && checkRes.status !== 404){
+    const errText = await checkRes.text();
+    throw new Error(`No se pudo verificar la carpeta de adjuntos: ${errText}`);
+  }
+  attachmentsFolderReady = true;
+}
+
 async function uploadAttachment(file, tuValue){
+  await ensureAttachmentsFolder();
   const token = await getToken();
   const safeName = `${tuValue||'sin-tu'}_${Date.now()}_${file.name}`.replace(/[^a-zA-Z0-9._-]/g,'_');
   const path = `/sites/${CONFIG.siteId}/drive/root:/${CONFIG.attachmentsFolderPath}/${encodeURIComponent(safeName)}:/content`;
@@ -581,7 +608,10 @@ async function uploadAttachment(file, tuValue){
     headers:{ 'Authorization': `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
     body: file
   });
-  if(!res.ok) throw new Error('No se pudo subir el archivo ' + file.name);
+  if(!res.ok){
+    const errText = await res.text();
+    throw new Error(`No se pudo subir "${file.name}": ${errText}`);
+  }
   const data = await res.json();
   return data.webUrl;
 }
@@ -740,6 +770,7 @@ document.getElementById('incidenciaForm').addEventListener('submit', async funct
     submitBtn.textContent = 'Guardando en SharePoint...';
 
     await createListItem({
+      Title: `${cdrSelect.value} - TU ${tu}`,
       CDR: cdrSelect.value,
       RecibidoPor: state.recibidoPor,
       TipoIncidencia: state.incidencia,
@@ -895,6 +926,7 @@ async function processBulk(){
     statusCell.innerHTML = '<span class="status-pending">⏳ Enviando...</span>';
     try{
       await createListItem({
+        Title: `${row.CDR.trim()} - TU ${row.TU.trim()}`,
         CDR: row.CDR.trim(),
         RecibidoPor: row.RecibidoPor.trim(),
         TipoIncidencia: row.TipoIncidencia.trim(),
