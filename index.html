@@ -9,10 +9,10 @@
 <style>
   :root{
     --ubi-blue:#54a4b3;
-    --ubi-blue-dark:#3d8291;
-    --ubi-blue-light:#e6f1f3;
+    --ubi-blue-dark:#000000;
+    --ubi-blue-light:rgba(84,164,179,.12);
     --ubi-gray:#636469;
-    --ubi-ink:#1c2b2e;
+    --ubi-ink:#000000;
     --ubi-bg:#f2f6f6;
     --ubi-white:#ffffff;
     --ubi-border:#dbe6e6;
@@ -33,7 +33,7 @@
 
   /* ---------- Header ---------- */
   .topbar{
-    background:linear-gradient(135deg,var(--ubi-ink) 0%,#233c40 60%,var(--ubi-blue-dark) 100%);
+    background:linear-gradient(135deg,#000000 0%,var(--ubi-gray) 55%,var(--ubi-blue) 100%);
     color:#fff;
     padding:22px 28px;
   }
@@ -54,9 +54,15 @@
     font-weight:800;font-size:15px;letter-spacing:.5px;
     box-shadow:0 4px 14px rgba(84,164,179,.45);
   }
-  .brand-text h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.2px;}
-  .brand-text p{margin:2px 0 0;font-size:12.5px;color:#b9d3d6;letter-spacing:.3px;}
-  .slogan{font-size:11.5px;color:#9fc0c4;font-style:italic;}
+  .brand-text h1{margin:0;font-size:22px;font-weight:800;letter-spacing:1px;}
+  .brand-text .slogan-inline{margin:2px 0 0;font-size:10.5px;color:#cfe4e6;letter-spacing:1.5px;text-transform:uppercase;}
+  .conn-badge{font-size:11.5px;color:#a8e0c4;display:flex;align-items:center;gap:5px;}
+  .conn-badge.err{color:#f0b0a8;}
+  .conn-badge::before{content:"●";font-size:9px;}
+
+  .page-title{margin-bottom:18px;}
+  .page-title h2{margin:0;font-size:20px;font-weight:800;color:var(--ubi-ink);}
+  .page-title p{margin:4px 0 0;font-size:13px;color:var(--ubi-gray);}
   .userbox{display:flex;align-items:center;gap:12px;font-size:12.5px;color:#cfe4e6;}
   .userbox .chip{background:rgba(255,255,255,.1);padding:6px 12px;border-radius:999px;}
   .userbox button{
@@ -187,15 +193,6 @@
   .trow .v.empty{color:#4f6669;font-style:italic;}
   .ticket-note{font-family:-apple-system,sans-serif;font-size:11.5px;color:var(--ubi-gray);margin-top:12px;line-height:1.5;}
 
-  .conn-card{background:var(--ubi-blue-light);border:1px solid #c9e2e5;}
-  .conn-card h2{color:var(--ubi-blue-dark);}
-  .conn-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-  .cols-box{
-    margin-top:12px;background:var(--ubi-white);border:1px solid var(--ubi-border);border-radius:8px;
-    padding:12px;font-family:var(--mono);font-size:12px;max-height:200px;overflow:auto;
-  }
-  .cols-box div{padding:2px 0;}
-
   .toast{
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
     background:var(--ubi-ink);color:#fff;padding:14px 22px;border-radius:9px;
@@ -252,15 +249,15 @@
     <div class="brand">
       <div class="brand-mark">U</div>
       <div class="brand-text">
-        <h1>Alertas operativas</h1>
-        <p>Reporte de incidencias · Centros de Distribución Regional</p>
+        <h1>UBICTUM</h1>
+        <p class="slogan-inline">LA PUERTA DE ENTRADA AL MERCADO</p>
       </div>
     </div>
     <div class="userbox" id="userbox" style="display:none;">
+      <span class="conn-badge" id="connBadge"></span>
       <span class="chip" id="userChip"></span>
       <button onclick="signOut()">Cerrar sesión</button>
     </div>
-    <div class="slogan" id="sloganText">La puerta de entrada al mercado</div>
   </div>
 </div>
 
@@ -274,18 +271,13 @@
 
 <div class="page" id="appContent">
 
-  <div class="card conn-card">
-    <h2>Conexión a SharePoint</h2>
-    <p class="sub">Verifica que la app apunta a la lista correcta antes de capturar datos reales.</p>
-    <div class="conn-row">
-      <button class="btn btn-ghost" onclick="testConnection()">Probar conexión / ver columnas de la lista</button>
-      <span id="connStatus" style="font-size:12.5px;color:var(--ubi-gray);"></span>
-    </div>
-    <div class="cols-box" id="colsBox" style="display:none;"></div>
+  <div class="page-title">
+    <h2>Alertas operativas</h2>
+    <p>Reporte de incidencias · Centros de Distribución Regional</p>
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('individual')">Reporte individual</button>
+    <button class="tab-btn active" onclick="switchTab('individual')">Carga individual</button>
     <button class="tab-btn" onclick="switchTab('masiva')">Carga masiva (CSV)</button>
   </div>
 
@@ -396,6 +388,13 @@
             <h2>Evidencia</h2>
             <p class="sub">Adjunta soporte y describe el hallazgo detectado.</p>
 
+            <div class="field" id="f-comentario">
+              <label>Comentario<span class="req">*</span></label>
+              <p class="hint" style="margin-top:-4px;">Especificar el hallazgo detectado.</p>
+              <textarea id="comentario" placeholder="Introducir un valor aquí" required></textarea>
+              <div class="err-msg">Describe el hallazgo detectado.</div>
+            </div>
+
             <div class="field" id="f-adjuntos">
               <label>Datos adjuntos<span class="req">*</span></label>
               <label class="file-drop" for="adjuntos">
@@ -404,13 +403,6 @@
               </label>
               <div class="file-list" id="fileList"></div>
               <div class="err-msg">Adjunta al menos un archivo.</div>
-            </div>
-
-            <div class="field" id="f-comentario">
-              <label>Comentario<span class="req">*</span></label>
-              <p class="hint" style="margin-top:-4px;">Especificar el hallazgo detectado.</p>
-              <textarea id="comentario" placeholder="Introducir un valor aquí" required></textarea>
-              <div class="err-msg">Describe el hallazgo detectado.</div>
             </div>
 
             <div class="actions">
@@ -436,7 +428,7 @@
   <div id="panel-masiva" class="panel">
     <div class="card">
       <h2>Carga masiva</h2>
-      <p class="sub">Sube un archivo CSV con varias incidencias. Los datos adjuntos y el comentario deben cargarse
+      <p class="sub">Sube un archivo CSV con varias incidencias. Los datos adjuntos deben cargarse
       individualmente después; el CSV cubre el resto de los campos.</p>
 
       <div style="display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;">
@@ -470,8 +462,8 @@ const CONFIG = {
 };
 
 // Mapeo de nuestros campos -> nombres internos de columna en SharePoint.
-// Usa el botón "Probar conexión / ver columnas" en la app para confirmar los nombres reales
-// y ajusta este objeto si no coinciden.
+// La conexión se verifica sola al iniciar sesión (ver testConnectionSilent). Si un campo no llega
+// a la lista, confirma aquí los nombres internos reales de columna y ajusta este mapeo.
 const FIELD_MAP = {
   Title: "Title",
   CDR: "CDR",
@@ -540,6 +532,7 @@ function onSignedIn(account){
   document.getElementById('appContent').style.display='block';
   document.getElementById('userbox').style.display='flex';
   document.getElementById('userChip').textContent = `${account.name} · ${account.username}`;
+  testConnectionSilent();
 }
 
 async function getToken(){
@@ -613,21 +606,15 @@ async function createListItem(fieldsRaw){
   }
 }
 
-async function testConnection(){
-  const statusEl = document.getElementById('connStatus');
-  const box = document.getElementById('colsBox');
-  statusEl.textContent = 'Consultando...';
-  box.style.display='none';
+async function testConnectionSilent(){
+  const badge = document.getElementById('connBadge');
   try{
-    const data = await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/columns`);
-    const cols = data.value.filter(c=>!c.hidden && !c.readOnly);
-    box.innerHTML = cols.map(c=>`<div><b>${c.name}</b> — ${c.displayName}</div>`).join('');
-    box.style.display='block';
-    statusEl.textContent = `✓ Conectado. ${cols.length} columnas editables encontradas.`;
-    statusEl.style.color = 'var(--ubi-success)';
+    await graphFetch(`/sites/${CONFIG.siteId}/lists/${CONFIG.listId}/columns`);
+    badge.textContent = 'Conectado con BD';
+    badge.classList.remove('err');
   }catch(err){
-    statusEl.textContent = '✕ Error de conexión: ' + err.message;
-    statusEl.style.color = 'var(--ubi-danger)';
+    badge.textContent = 'Sin conexión a BD';
+    badge.classList.add('err');
   }
 }
 
@@ -905,8 +892,7 @@ function renderCsvPreview(rows){
       </button>
     </div>
     <div class="conn-note">
-      ⚙️ Cada fila válida se inserta como un elemento nuevo en la lista de SharePoint. Los adjuntos y comentarios
-      detallados se completan después vía el formulario individual.
+      ⚙️ Cada fila válida se inserta como un elemento nuevo en la BD.
     </div>
   `;
 }
@@ -920,6 +906,7 @@ async function processBulk(){
 
   const validIndexes = parsedRows.map((row,i)=>({row,i,errors:validateRow(row)})).filter(x=>x.errors.length===0);
   let done = 0;
+  let failCount = 0;
 
   for(const {row,i} of validIndexes){
     const rowEl = document.getElementById(`csv-row-${i}`);
@@ -952,14 +939,27 @@ async function processBulk(){
       rowEl.classList.remove('row-invalid'); rowEl.classList.add('row-done');
     }catch(err){
       statusCell.innerHTML = `<span class="status-bad">✕ Error: ${err.message}</span>`;
+      failCount++;
     }
     done++;
     progressBar.style.width = Math.round((done/validIndexes.length)*100) + '%';
     await new Promise(r=>setTimeout(r, 250)); // pausa para no saturar Graph API
   }
 
-  btn.textContent = 'Carga completada';
-  showToast(`Carga masiva terminada: ${done} fila(s) procesadas.`, 'success');
+  if(failCount === 0){
+    showToast(`✓ Carga masiva completa: ${done} fila(s) guardadas en la BD.`, 'success');
+    setTimeout(resetBulkForm, 1200);
+  }else{
+    btn.textContent = 'Carga completada';
+    showToast(`Carga terminada: ${done-failCount} guardadas, ${failCount} con error.`, 'error');
+  }
+}
+
+function resetBulkForm(){
+  document.getElementById('csvFile').value = '';
+  document.getElementById('csvResults').innerHTML = '';
+  parsedRows = [];
+  rowAttachments = {};
 }
 
 
