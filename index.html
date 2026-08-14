@@ -493,7 +493,7 @@ const TIPO_ERROR_MAP = {
   "Transporte": ["Sello violado","Unidad incorrecta","Condiciones del transporte"],
   "Merma": ["Producto dañado","Fuga o derrame","Contaminación","Pérdida operativa"]
 };
-const CSV_COLUMNS = ["CDR","RecibidoPor","TipoIncidencia","TipoError","FolioTransferencia","Material","Lote","CantidadSolicitada","CantidadRecibida","CantidadAfectada","TU","Comentario"];
+const CSV_COLUMNS = ["CDR","RecibidoPor","TipoIncidencia","TipoIncidenciaEmbarque","Folio","Material","Lote","CantidadSolicitadaCDR","CantidadPzasRecibidasCDR","CantidadPzasAfectadas","TU","Comentario"];
 
 /* ============================================================
    AUTENTICACIÓN — MSAL.js restringido al tenant de Ubictum
@@ -837,10 +837,10 @@ function validateRow(row){
   if(!['CDM','Encadenamiento'].includes((row.RecibidoPor||'').trim())) errors.push('RecibidoPor inválido');
   if(!INCIDENCIA_OPTIONS.includes((row.TipoIncidencia||'').trim())) errors.push('TipoIncidencia inválido');
   const cat = (row.TipoIncidencia||'').trim();
-  const te = (row.TipoError||'').trim();
-  if(te && cat && TIPO_ERROR_MAP[cat] && !TIPO_ERROR_MAP[cat].includes(te)) errors.push('TipoError no corresponde a la categoría');
-  if(row.FolioTransferencia && !/^\d{10}$/.test(row.FolioTransferencia.trim())) errors.push('Folio debe ser 10 dígitos');
-  ['CantidadSolicitada','CantidadRecibida','CantidadAfectada'].forEach(k=>{
+  const te = (row.TipoIncidenciaEmbarque||'').trim();
+  if(te && cat && TIPO_ERROR_MAP[cat] && !TIPO_ERROR_MAP[cat].includes(te)) errors.push('TipoIncidenciaEmbarque no corresponde a la categoría');
+  if(row.Folio && !/^\d{10}$/.test(row.Folio.trim())) errors.push('Folio debe ser 10 dígitos');
+  ['CantidadSolicitadaCDR','CantidadPzasRecibidasCDR','CantidadPzasAfectadas'].forEach(k=>{
     if((row[k]||'').trim()==='' || isNaN(Number(row[k]))) errors.push(k+' inválido');
   });
   if(!/^\d{10}$/.test((row.TU||'').trim())) errors.push('TU debe ser 10 dígitos');
@@ -924,13 +924,13 @@ async function processBulk(){
         CDR: row.CDR.trim(),
         RecibidoPor: row.RecibidoPor.trim(),
         TipoIncidencia: row.TipoIncidencia.trim(),
-        TipoError: (row.TipoError||'').trim() || null,
-        FolioTransferencia: (row.FolioTransferencia||'').trim() || null,
+        TipoError: (row.TipoIncidenciaEmbarque||'').trim() || null,
+        FolioTransferencia: (row.Folio||'').trim() || null,
         Material: (row.Material||'').trim() || null,
         Lote: (row.Lote||'').trim() || null,
-        CantidadSolicitada: row.CantidadSolicitada.trim(),
-        CantidadRecibida: row.CantidadRecibida.trim(),
-        CantidadAfectada: row.CantidadAfectada.trim(),
+        CantidadSolicitada: row.CantidadSolicitadaCDR.trim(),
+        CantidadRecibida: row.CantidadPzasRecibidasCDR.trim(),
+        CantidadAfectada: row.CantidadPzasAfectadas.trim(),
         TU: row.TU.trim(),
         Comentario: row.Comentario.trim(),
         DatosAdjuntos: attachUrls.length ? attachUrls.join('\n') : null
