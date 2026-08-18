@@ -527,7 +527,23 @@ function normalizeCsvRow(rawRow){
     const byKey = normMap[normalizeHeader(key)];
     out[key] = (byLabel !== undefined ? byLabel : (byKey !== undefined ? byKey : '')) || '';
   });
+
+  // Tolerante a acentos/mayúsculas/espacios en los campos de opciones fijas: reconoce
+  // "Mexico Norte", "MEXICO NORTE", etc. y lo normaliza a la forma correcta "México Norte".
+  out.CDR = matchOption(out.CDR, CDR_OPTIONS);
+  out.RecibidoPor = matchOption(out.RecibidoPor, ['CDM','Encadenamiento']);
+  out.TipoIncidencia = matchOption(out.TipoIncidencia, INCIDENCIA_OPTIONS);
+  const teOptions = TIPO_ERROR_MAP[out.TipoIncidencia];
+  if(teOptions) out.TipoIncidenciaEmbarque = matchOption(out.TipoIncidenciaEmbarque, teOptions);
+
   return out;
+}
+
+function matchOption(value, options){
+  if(!value) return value;
+  const norm = normalizeHeader(value);
+  const found = options.find(o=>normalizeHeader(o)===norm);
+  return found || value;
 }
 
 /* ============================================================
