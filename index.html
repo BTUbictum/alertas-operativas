@@ -495,6 +495,41 @@ const TIPO_ERROR_MAP = {
 };
 const CSV_COLUMNS = ["CDR","RecibidoPor","TipoIncidencia","TipoIncidenciaEmbarque","Folio","Material","Lote","CantidadSolicitadaCDR","CantidadPzasRecibidasCDR","CantidadPzasAfectadas","TU","Comentario"];
 
+// Leyendas amigables (las mismas del formulario de Carga individual) — solo para mostrar/descargar.
+// El mapeo hacia SharePoint sigue usando las claves internas de arriba, esto no lo toca.
+const CSV_LABELS = {
+  CDR: "CDR",
+  RecibidoPor: "Recibido por",
+  TipoIncidencia: "Tipo de incidencia",
+  TipoIncidenciaEmbarque: "Tipo de error",
+  Folio: "Folio de transferencia",
+  Material: "Material",
+  Lote: "Lote",
+  CantidadSolicitadaCDR: "Cantidad solicitada en CDR",
+  CantidadPzasRecibidasCDR: "Cantidad de piezas recibidas en CDR",
+  CantidadPzasAfectadas: "Cantidad de piezas afectadas",
+  TU: "TU",
+  Comentario: "Comentario"
+};
+
+function normalizeHeader(h){
+  return (h||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,'');
+}
+
+// Convierte una fila leída del CSV (que puede traer encabezados con leyenda amigable o con la
+// clave interna) a un objeto con las claves internas de siempre, para no romper el mapeo.
+function normalizeCsvRow(rawRow){
+  const normMap = {};
+  Object.keys(rawRow).forEach(h=>{ normMap[normalizeHeader(h)] = rawRow[h]; });
+  const out = {};
+  CSV_COLUMNS.forEach(key=>{
+    const byLabel = normMap[normalizeHeader(CSV_LABELS[key])];
+    const byKey = normMap[normalizeHeader(key)];
+    out[key] = (byLabel !== undefined ? byLabel : (byKey !== undefined ? byKey : '')) || '';
+  });
+  return out;
+}
+
 /* ============================================================
    AUTENTICACIÓN — MSAL.js restringido al tenant de Ubictum
    ============================================================ */
@@ -797,7 +832,7 @@ function switchTab(name){
 
 /* ============ CSV BULK ============ */
 function downloadTemplate(){
-  const csv = CSV_COLUMNS.join(',') + '\n';
+  const csv = CSV_COLUMNS.map(k=>CSV_LABELS[k]).join(',') + '\n';
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -825,7 +860,7 @@ document.getElementById('csvFile').addEventListener('change', function(e){
     header:true,
     skipEmptyLines:true,
     complete: function(results){
-      parsedRows = results.data;
+      parsedRows = results.data.map(normalizeCsvRow);
       renderCsvPreview(parsedRows);
     }
   });
@@ -881,7 +916,7 @@ function renderCsvPreview(rows){
     </div>
     <div class="table-wrap">
       <table class="preview">
-        <thead><tr><th>#</th><th>Estado</th>${CSV_COLUMNS.map(c=>`<th>${c}</th>`).join('')}<th>Adjunto</th></tr></thead>
+        <thead><tr><th>#</th><th>Estado</th>${CSV_COLUMNS.map(c=>`<th>${CSV_LABELS[c]||c}</th>`).join('')}<th>Adjunto</th></tr></thead>
         <tbody id="csvTbody">${bodyRows}</tbody>
       </table>
     </div>
