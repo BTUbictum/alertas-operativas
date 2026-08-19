@@ -70,6 +70,12 @@
     padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;
   }
   .userbox button:hover{background:rgba(255,255,255,.12);}
+  .login-btn-top{
+    background:#fff;color:#14343a;border:1px solid #fff;
+    padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;
+    cursor:pointer;font-family:inherit;
+  }
+  .login-btn-top:hover{background:#e9f3f4;}
 
   /* ---------- Auth gate ---------- */
   .gate{
@@ -258,14 +264,16 @@
       <span class="chip" id="userChip"></span>
       <button onclick="signOut()">Cerrar sesión</button>
     </div>
+    <div id="loginbox" style="display:none;">
+      <button class="login-btn-top" onclick="signIn()">Iniciar sesión</button>
+    </div>
   </div>
 </div>
 
 <!-- ======================= AUTH GATE ======================= -->
 <div class="gate" id="authGate">
   <h2>Acceso restringido a Ubictum</h2>
-  <p>Inicia sesión con tu cuenta del tenant de Ubictum (interna o invitada) para reportar una incidencia.</p>
-  <button class="gate-btn" onclick="signIn()">🔐 Iniciar sesión</button>
+  <p>Inicia sesión con tu cuenta del tenant de Ubictum (interna o invitada) para reportar una incidencia — usa el botón "Iniciar sesión" de la esquina superior derecha.</p>
   <div class="gate-err" id="gateErr"></div>
 </div>
 
@@ -555,7 +563,7 @@ const msalConfig = {
     authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`, // single-tenant: solo cuentas de este directorio (incluye guests)
     redirectUri: window.location.href
   },
-  cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+  cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
 };
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 
@@ -574,6 +582,7 @@ function signOut(){
   msalInstance.logoutPopup().then(()=>{
     document.getElementById('appContent').style.display='none';
     document.getElementById('userbox').style.display='none';
+    document.getElementById('loginbox').style.display='flex';
     document.getElementById('authGate').style.display='flex';
   });
 }
@@ -582,6 +591,7 @@ function onSignedIn(account){
   document.getElementById('authGate').style.display='none';
   document.getElementById('appContent').style.display='block';
   document.getElementById('userbox').style.display='flex';
+  document.getElementById('loginbox').style.display='none';
   document.getElementById('userChip').textContent = `${account.name} · ${account.username}`;
   testConnectionSilent();
 }
@@ -603,6 +613,8 @@ async function getToken(){
   if(accounts.length > 0){
     msalInstance.setActiveAccount(accounts[0]);
     onSignedIn(accounts[0]);
+  } else {
+    document.getElementById('loginbox').style.display='flex';
   }
 })();
 
