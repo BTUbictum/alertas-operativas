@@ -608,15 +608,25 @@ async function getToken(){
   }
 }
 
-(function initAuth(){
+async function initAuth(){
+  // Ver nota: los portales U-* comparten localStorage (mismo dominio),
+  // así que nunca confiamos en getAllAccounts() por sí solo — siempre
+  // pedimos un token específico para ESTA app antes de dejar pasar.
   const accounts = msalInstance.getAllAccounts();
-  if(accounts.length > 0){
-    msalInstance.setActiveAccount(accounts[0]);
-    onSignedIn(accounts[0]);
-  } else {
+  try{
+    let tokenResp;
+    if(accounts.length > 0){
+      tokenResp = await msalInstance.acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] });
+    } else {
+      tokenResp = await msalInstance.ssoSilent({ scopes: GRAPH_SCOPES });
+    }
+    msalInstance.setActiveAccount(tokenResp.account);
+    onSignedIn(tokenResp.account);
+  } catch(e){
     document.getElementById('loginbox').style.display='flex';
   }
-})();
+}
+initAuth();
 
 /* ============================================================
    GRAPH HELPERS
