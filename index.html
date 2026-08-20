@@ -46,14 +46,16 @@
     flex-wrap:wrap;
     gap:12px;
   }
-  .brand{display:flex;align-items:center;gap:12px;}
+  .brand{display:flex;align-items:center;gap:12px;cursor:pointer;}
   .brand-mark{
+    cursor:pointer;
     width:38px;height:38px;border-radius:9px;
     background:var(--ubi-blue);
     display:flex;align-items:center;justify-content:center;
     font-weight:800;font-size:15px;letter-spacing:.5px;
     box-shadow:0 4px 14px rgba(84,164,179,.45);
   }
+  .brand-mark:hover{opacity:.85;}
   .brand-text h1{margin:0;font-size:22px;font-weight:800;letter-spacing:1px;}
   .brand-text .slogan-inline{margin:2px 0 0;font-size:10.5px;color:#cfe4e6;letter-spacing:1.5px;text-transform:uppercase;}
   .conn-badge{font-size:11.5px;color:#a8e0c4;display:flex;align-items:center;gap:5px;}
@@ -268,7 +270,7 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="brand">
+    <div class="brand" onclick="window.location.href='https://btubictum.github.io/U-Home/'" title="Regresar a U-Home">
       <div class="brand-mark">U</div>
       <div class="brand-text">
         <h1>UBICTUM</h1>
@@ -280,16 +282,14 @@
       <span class="chip" id="userChip"></span>
       <button onclick="signOut()">Cerrar sesión</button>
     </div>
-    <div id="loginbox" style="display:none;">
-      <button class="login-btn-top" onclick="signIn()">Iniciar sesión</button>
-    </div>
   </div>
 </div>
 
 <!-- ======================= AUTH GATE ======================= -->
 <div class="gate" id="authGate">
   <h2>Acceso restringido a Ubictum</h2>
-  <p>Inicia sesión con tu cuenta del tenant de Ubictum (interna o invitada) para reportar una incidencia — usa el botón "Iniciar sesión" de la esquina superior derecha.</p>
+  <p>Inicia sesión con tu cuenta del tenant de Ubictum (interna o invitada) para reportar una incidencia.</p>
+  <button class="gate-btn" onclick="signIn()">Iniciar sesión</button>
   <div class="gate-err" id="gateErr"></div>
 </div>
 
@@ -607,7 +607,6 @@ function signOut(){
   msalInstance.logoutPopup().then(()=>{
     document.getElementById('appContent').style.display='none';
     document.getElementById('userbox').style.display='none';
-    document.getElementById('loginbox').style.display='flex';
     document.getElementById('authGate').style.display='flex';
   });
 }
@@ -616,7 +615,6 @@ function onSignedIn(account){
   document.getElementById('authGate').style.display='none';
   document.getElementById('appContent').style.display='block';
   document.getElementById('userbox').style.display='flex';
-  document.getElementById('loginbox').style.display='none';
   document.getElementById('userChip').textContent = `${account.name} · ${account.username}`;
   testConnectionSilent();
 }
@@ -648,7 +646,7 @@ async function initAuth(){
     msalInstance.setActiveAccount(tokenResp.account);
     onSignedIn(tokenResp.account);
   } catch(e){
-    document.getElementById('loginbox').style.display='flex';
+    document.getElementById('authGate').style.display='flex';
   }
 }
 initAuth();
